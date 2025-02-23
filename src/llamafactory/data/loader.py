@@ -316,15 +316,25 @@ def get_dataset(
 
     # Load and preprocess dataset
     with training_args.main_process_first(desc="load dataset"):
-        dataset = _get_merged_dataset(data_args.dataset, model_args, data_args, training_args, stage)
+        dataset = _get_merged_dataset(data_args.dataset, model_args, data_args, training_args, stage, merge=False)
         eval_dataset = _get_merged_dataset(
-            data_args.eval_dataset, model_args, data_args, training_args, stage, merge=training_args.do_predict
+            data_args.eval_dataset, model_args, data_args, training_args, stage, merge=training_args.do_predict, merge=False
         )
 
     with training_args.main_process_first(desc="pre-process dataset"):
-        dataset = _get_preprocessed_dataset(
-            dataset, data_args, training_args, stage, template, tokenizer, processor, is_eval=False
-        )
+        if isinstance(dataset, dict):
+            # not merged yet
+            for dataset_name, dataset_data in dataset.items():
+                dataset[dataset_name] = _get_preprocessed_dataset(
+                    dataset_data, data_args, training_args, stage, template, tokenizer, processor, is_eval=False
+                )
+            
+            dataset = merge_dataset(list(dataset.values()), data_args, seed=training_args.seed)
+        else:
+            dataset = _get_preprocessed_dataset(
+                dataset, data_args, training_args, stage, template, tokenizer, processor, is_eval=False
+            )
+
         if isinstance(eval_dataset, dict):
             for eval_name, eval_data in eval_dataset.items():
                 eval_dataset[eval_name] = _get_preprocessed_dataset(
